@@ -12,3 +12,13 @@ The project consists of three core modules:
 - Fetches the latest prices for up to **5 U.S. stocks** once per minute.  
 - Stores results in a continuously growing CSV file (`portfolio_quotes.csv`).  
 - Prints real-time updates to the console.
+
+### **2️⃣ visualise.py — Live Visualization**
+- Monitors the CSV produced by `extract.py` and updates visualisations automatically.  
+- Generates **live-updating line charts** every 5 seconds for each stock and an aggregated portfolio view.
+
+**Available visuals:**
+- Real-time line charts per ticker  
+- Combined portfolio trend (normalized performance)
+
+---
