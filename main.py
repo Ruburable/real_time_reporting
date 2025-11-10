@@ -2,10 +2,9 @@ import subprocess
 import time
 import sys
 import os
-import signal
 
 # config
-SCRIPTS = ["extract.py", "visualise.py"]
+SCRIPTS = ["extract.py", "visualise.py", "output.py"]
 
 def start_process(script):
     """Start a subprocess for a given script."""
@@ -19,8 +18,15 @@ def main():
             print(f"Error: {s} not found in the current directory.")
             return
 
+    # ensure output directory exists
+    os.makedirs("out", exist_ok=True)
+
+    # start all scripts
     processes = {s: start_process(s) for s in SCRIPTS}
-    print("All modules are running. Press Ctrl+C to stop.")
+    print("\nAll modules are running:")
+    for s in SCRIPTS:
+        print(f" - {s}")
+    print("\nPress Ctrl+C to stop all services.\n")
 
     try:
         while True:
@@ -31,6 +37,7 @@ def main():
                     print(f"{s} exited with code {ret}. Restarting...")
                     processes[s] = start_process(s)
             time.sleep(5)
+
     except KeyboardInterrupt:
         print("\nStopping all processes...")
         for p in processes.values():
