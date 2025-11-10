@@ -13,6 +13,7 @@ plt.style.use("dark_background")
 data_file = "portfolio_quotes.csv"
 refresh_interval = 15  # seconds between updates
 window_size = 100      # number of timestamps to display
+out_dir = "out"
 
 def plot_live():
     if not os.path.exists(data_file):
@@ -20,7 +21,8 @@ def plot_live():
         while not os.path.exists(data_file):
             time.sleep(5)
 
-    print("Starting live visualization... (Ctrl+C to stop)")
+    os.makedirs(out_dir, exist_ok=True)
+    print(f"Starting live visualization... (Ctrl+C to stop)\nSaving plots to: {out_dir}/")
 
     while True:
         try:
@@ -81,6 +83,11 @@ def plot_live():
                 fontsize=14, color='white'
             )
             plt.tight_layout(rect=[0, 0, 1, 0.97])
+
+            # save to folder
+            out_path = os.path.join(out_dir, "portfolio_live.png")
+            fig.savefig(out_path, dpi=150, bbox_inches="tight")
+            print(f"Plot updated: {out_path}")
 
             plt.show(block=False)
             plt.pause(refresh_interval)
