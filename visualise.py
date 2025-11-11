@@ -5,11 +5,11 @@ import time
 import os
 from datetime import datetime
 
-# load style
+# Load style
 sns.set_theme(style="darkgrid")
 plt.style.use("dark_background")
 
-# config
+# Config
 data_file = "portfolio_quotes.csv"
 refresh_interval = 15  # seconds between updates
 window_size = 100      # number of timestamps to display
@@ -32,41 +32,69 @@ def plot_live():
                 time.sleep(refresh_interval)
                 continue
 
+            # Prepare data
             df['timestamp'] = pd.to_datetime(df['timestamp'])
             df = df.sort_values(['symbol', 'timestamp'])
+            symbols = df['symbol'].unique()
 
-            # normalize prices per stock
+            # Normalize prices for portfolio view
             normalized_list = []
-            for sym in df['symbol'].unique():
+            for sym in symbols:
                 sub = df[df['symbol'] == sym].copy()
                 sub['normalized_price'] = sub['price'] / sub['price'].iloc[0]
                 normalized_list.append(sub)
             normalized = pd.concat(normalized_list)
 
-            # keep only recent window
+            # Keep recent window
             unique_times = df['timestamp'].drop_duplicates().sort_values()
             if len(unique_times) > window_size:
                 recent_times = unique_times.iloc[-window_size:]
                 df = df[df['timestamp'].isin(recent_times)]
                 normalized = normalized[normalized['timestamp'].isin(recent_times)]
 
-            symbols = df['symbol'].unique()
+            # Set up figure
             fig, axes = plt.subplots(len(symbols) + 1, 1,
                                      figsize=(10, 3.5 * (len(symbols) + 1)),
                                      sharex=True)
             if len(symbols) == 1:
                 axes = [axes]
 
-            # plot each stock
+            # Plot individual stock performance with color-coded changes
             for i, sym in enumerate(symbols):
-                sub = df[df['symbol'] == sym]
-                sns.lineplot(ax=axes[i], data=sub, x='timestamp', y='price', color='cyan')
-                axes[i].set_title(f"{sym} Price", fontsize=12, color='white')
+                sub = df[df['symbol'] == sym].reset_index(drop=True)
+                axes[i].set_title(f"{sym} Price (Source: AV / FMP)", fontsize=12, color='white')
                 axes[i].set_ylabel("Price ($)", color='white')
                 axes[i].tick_params(axis='x', colors='white')
                 axes[i].tick_params(axis='y', colors='white')
 
-            # portfolio performance
+                for j in range(1, len(sub)):
+                    prev_price = sub.loc[j - 1, 'price']
+                    curr_price = sub.loc[j, 'price']
+                    color = (
+                        'green' if curr_price > prev_price
+                        else 'red' if curr_price < prev_price
+                        else 'gray'
+                    )
+                    axes[i].plot(
+                        sub.loc[j - 1:j, 'timestamp'],
+                        sub.loc[j - 1:j, 'price'],
+                        color=color,
+                        linewidth=1.8,
+                    )
+
+                # Mark latest point with a label for source
+                if not sub.empty:
+                    last = sub.iloc[-1]
+                    axes[i].scatter(
+                        last['timestamp'], last['price'],
+                        color='white', s=30, edgecolor='black', zorder=5
+                    )
+                    axes[i].text(
+                        last['timestamp'], last['price'],
+                        f" {last['source']}", color='white', fontsize=8, va='center'
+                    )
+
+            # Plot normalized portfolio performance
             portfolio = (
                 normalized.groupby('timestamp')['normalized_price']
                 .mean()
@@ -84,7 +112,7 @@ def plot_live():
             )
             plt.tight_layout(rect=[0, 0, 1, 0.97])
 
-            # save to folder
+            # Save to folder
             out_path = os.path.join(out_dir, "portfolio_live.png")
             fig.savefig(out_path, dpi=150, bbox_inches="tight")
             print(f"Plot updated: {out_path}")
