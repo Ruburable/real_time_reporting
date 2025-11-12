@@ -4,6 +4,7 @@ import seaborn as sns
 import time
 import os
 from datetime import datetime
+import subprocess
 
 sns.set_theme(style="darkgrid")
 plt.style.use("dark_background")
@@ -84,11 +85,12 @@ def plot_live():
 
             out_path = os.path.join(out_dir, "portfolio_live.png")
             fig.savefig(out_path, dpi=150, bbox_inches="tight")
-            print(f"Plot updated: {out_path}")
-
-            plt.show(block=False)
-            plt.pause(refresh_interval)
             plt.close(fig)
+
+            subprocess.run(["python", "output.py"], check=False)
+            print(f"Plot and dashboard updated: {out_path}")
+
+            time.sleep(refresh_interval)
 
         except KeyboardInterrupt:
             print("Visualization stopped by user.")
