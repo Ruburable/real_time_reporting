@@ -3,25 +3,20 @@ import time
 import sys
 import os
 
-# config
 SCRIPTS = ["extract.py", "visualise.py", "output.py"]
 
 def start_process(script):
-    """Start a subprocess for a given script."""
     print(f"Starting {script} ...")
     return subprocess.Popen([sys.executable, script])
 
 def main():
-    # ensure scripts exist
     for s in SCRIPTS:
         if not os.path.exists(s):
             print(f"Error: {s} not found in the current directory.")
             return
 
-    # ensure output directory exists
     os.makedirs("out", exist_ok=True)
 
-    # start all scripts
     processes = {s: start_process(s) for s in SCRIPTS}
     print("\nAll modules are running:")
     for s in SCRIPTS:
@@ -30,7 +25,6 @@ def main():
 
     try:
         while True:
-            # check if any process has exited; if so, restart it
             for s, p in list(processes.items()):
                 ret = p.poll()
                 if ret is not None:
