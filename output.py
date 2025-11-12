@@ -1,19 +1,17 @@
 import os
 from datetime import datetime
 
-# folder where visualise.py saves the plot
 OUT_DIR = "out"
 PLOT_FILE = "portfolio_live.png"
 HTML_FILE = os.path.join(OUT_DIR, "dashboard.html")
 
 def create_dashboard():
     os.makedirs(OUT_DIR, exist_ok=True)
-
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="refresh" content="15"> <!-- Auto-refresh every 15 seconds -->
+    <meta http-equiv="refresh" content="15">
     <title>Live Portfolio Dashboard</title>
     <style>
         body {{
@@ -38,13 +36,12 @@ def create_dashboard():
     </style>
 </head>
 <body>
-    <h1>📊 Live Portfolio Dashboard</h1>
+    <h1>Live Portfolio Dashboard</h1>
     <img src="{PLOT_FILE}?t={datetime.utcnow().timestamp()}" alt="Portfolio Plot">
     <div class="timestamp">Last refreshed: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}</div>
 </body>
 </html>
 """
-
     with open(HTML_FILE, "w", encoding="utf-8") as f:
         f.write(html_content)
     print(f"Dashboard generated: {HTML_FILE}")
