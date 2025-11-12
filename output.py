@@ -36,7 +36,7 @@ def create_dashboard():
     </style>
 </head>
 <body>
-    <h1>📊 Live Portfolio Dashboard</h1>
+    <h1>Live Portfolio Dashboard</h1>
     <img src="{PLOT_FILE}?t={datetime.utcnow().timestamp()}" alt="Portfolio Plot">
     <div class="timestamp">Last refreshed: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}</div>
 </body>
