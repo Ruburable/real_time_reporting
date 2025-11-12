@@ -4,106 +4,147 @@ from datetime import datetime
 import pandas as pd
 from dotenv import load_dotenv
 import requests
+import yfinance as yf
 
-# Load API keys
 load_dotenv()
 AV_API_KEY = os.getenv("ALPHAVANTAGE_API_KEY")
 FMP_API_KEY = os.getenv("FMP_API_KEY")
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
+TWELVE_API_KEY = os.getenv("TWELVE_API_KEY")
 
-# Portfolio
 tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA"]
 output_file = "portfolio_quotes.csv"
 
-# Clear previous data
 if os.path.exists(output_file):
     os.remove(output_file)
-    print(f"Previous output file '{output_file}' removed. Starting fresh session.")
+    print(f"Previous output file '{output_file}' removed.")
 else:
     print("No existing data found. Starting new session.")
 
-# Alpha Vantage fetcher
-def fetch_av_quote(symbol: str):
-    url = (
-        f"https://www.alphavantage.co/query"
-        f"?function=GLOBAL_QUOTE&symbol={symbol}&apikey={AV_API_KEY}"
-    )
-    resp = requests.get(url)
-    resp.raise_for_status()
-    data = resp.json().get("Global Quote", {})
+def fetch_av(symbol):
+    url = f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={AV_API_KEY}"
+    r = requests.get(url, timeout=10)
+    r.raise_for_status()
+    data = r.json().get("Global Quote", {})
     if not data or "05. price" not in data:
-        raise ValueError("Invalid or empty response from Alpha Vantage")
+        raise ValueError("Empty AV response")
     return float(data["05. price"])
 
-# Financial Modeling Prep (stable endpoint)
-def fetch_fmp_quotes(symbols):
+def fetch_fmp(symbols):
     prices = {}
-    for symbol in symbols:
-        url = (
-            f"https://financialmodelingprep.com/stable/quote-short"
-            f"?symbol={symbol}&apikey={FMP_API_KEY}"
-        )
-        resp = requests.get(url)
-        resp.raise_for_status()
-        data = resp.json()
-        if not data:
-            print(f"No data returned for {symbol} from FMP.")
-            continue
-        prices[symbol] = float(data[0]["price"])
-        time.sleep(0.3)
+    for s in symbols:
+        url = f"https://financialmodelingprep.com/stable/quote-short?symbol={s}&apikey={FMP_API_KEY}"
+        r = requests.get(url, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        if data:
+            prices[s] = float(data[0]["price"])
+        time.sleep(0.15)
     return prices
 
-# Save records
+def fetch_finnhub(symbols):
+    prices = {}
+    for s in symbols:
+        url = f"https://finnhub.io/api/v1/quote?symbol={s}&token={FINNHUB_API_KEY}"
+        r = requests.get(url, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        if "c" in data and data["c"] != 0:
+            prices[s] = float(data["c"])
+        time.sleep(0.15)
+    return prices
+
+def fetch_twelvedata(symbols):
+    prices = {}
+    for s in symbols:
+        url = f"https://api.twelvedata.com/price?symbol={s}&apikey={TWELVE_API_KEY}"
+        r = requests.get(url, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        if "price" in data:
+            prices[s] = float(data["price"])
+        time.sleep(0.15)
+    return prices
+
+def fetch_yfinance(symbols):
+    prices = {}
+    for s in symbols:
+        try:
+            ticker = yf.Ticker(s)
+            p = ticker.fast_info.get("last_price")
+            if p:
+                prices[s] = float(p)
+        except Exception:
+            continue
+    return prices
+
 def append_to_csv(records):
     if not records:
         return
     df = pd.DataFrame(records)
     df.to_csv(output_file, mode="a", header=not os.path.exists(output_file), index=False)
 
-# Main alternating loop
-print(f"Starting alternating data collection for {tickers}")
-use_av = True  # Start with Alpha Vantage
+providers = [
+    ("AV", fetch_av),
+    ("FMP", fetch_fmp),
+    ("FINNHUB", fetch_finnhub),
+    ("TWELVE", fetch_twelvedata),
+    ("YF", fetch_yfinance),
+]
+
+active_providers = []
+for name, func in providers:
+    if name in ("YF",) or os.getenv(f"{name}_API_KEY"):
+        active_providers.append((name, func))
+
+if not active_providers:
+    raise RuntimeError("No valid API keys found!")
+
+print(f"Active data sources: {[p[0] for p in active_providers]}")
+print("Starting rotation...\n")
+
+provider_index = 0
+INTERVAL_BETWEEN_PROVIDERS = 6
+SLEEP_PER_STOCK_AV = 0.8
 
 try:
     while True:
         ts_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-        source = "Alpha Vantage" if use_av else "FMP"
-        print(f"\n[{ts_str}] Fetching data from {source}...")
+        name, fetcher = active_providers[provider_index]
+        print(f"[{ts_str}] {name}")
 
         records = []
-
-        if use_av:
-            for symbol in tickers:
-                try:
-                    price = fetch_av_quote(symbol)
-                    print(f"{symbol} (AV) = ${price:.2f}")
+        try:
+            if name == "AV":
+                for s in tickers:
+                    try:
+                        price = fetcher(s)
+                        print(f"{s} ({name}) = ${price:.2f}")
+                        records.append({
+                            "timestamp": ts_str,
+                            "symbol": s,
+                            "price": price,
+                            "source": name
+                        })
+                    except Exception as e:
+                        print(f"Error {s} {name}: {e}")
+                    time.sleep(SLEEP_PER_STOCK_AV)
+            else:
+                prices = fetcher(tickers)
+                for s, price in prices.items():
+                    print(f"{s} ({name}) = ${price:.2f}")
                     records.append({
                         "timestamp": ts_str,
-                        "symbol": symbol,
+                        "symbol": s,
                         "price": price,
-                        "source": "AV"
+                        "source": name
                     })
-                except Exception as e:
-                    print(f"Error fetching {symbol} from AV: {e}")
-                time.sleep(1.2)  # short delay between Alpha Vantage requests
-        else:
-            try:
-                prices = fetch_fmp_quotes(tickers)
-                for symbol, price in prices.items():
-                    print(f"{symbol} (FMP) = ${price:.2f}")
-                    records.append({
-                        "timestamp": ts_str,
-                        "symbol": symbol,
-                        "price": price,
-                        "source": "FMP"
-                    })
-            except Exception as e:
-                print(f"Error fetching from FMP: {e}")
+        except Exception as e:
+            print(f"Provider {name} failed: {e}")
 
         append_to_csv(records)
-        print(f"[{datetime.utcnow().strftime('%H:%M:%S')}] Cycle complete. Switching source in 30s...\n")
-
-        use_av = not use_av
-        time.sleep(30)
+        provider_index = (provider_index + 1) % len(active_providers)
+        time.sleep(INTERVAL_BETWEEN_PROVIDERS)
 
 except KeyboardInterrupt:
     print("Stopped by user.")
